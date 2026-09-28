@@ -45,7 +45,7 @@ export const getListing = async (req, res, next) => {
   } catch (error) { return next(error); }
 };
 
-const escapeRegex = (value) => value.replace(/[.*+?^$()|[\]\\]/g, '\\$&');
+export const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 export const getListings = async (req, res, next) => {
   try {
