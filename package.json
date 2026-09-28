@@ -1,15 +1,17 @@
 {
   "name": "mern-estate",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Full-stack real estate marketplace built with MERN and Tailwind CSS.",
+  "main": "api/index.js",
   "type": "module",
   "scripts": {
     "dev": "nodemon api/index.js",
     "start": "node api/index.js",
+    "test": "node --test api/tests/*.test.js",
+    "check": "node --check api/index.js && node --check api/controllers/auth.controller.js && node --check api/controllers/listing.controller.js && node --check api/controllers/user.controller.js && node --check api/utils/validation.js",
     "build": "npm install && npm install --prefix client && npm run build --prefix client"
   },
-  "keywords": [],
+  "keywords": ["real-estate", "mern", "mongodb", "express", "react", "tailwind"],
   "author": "",
   "license": "ISC",
   "dependencies": {

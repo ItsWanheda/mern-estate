@@ -1,79 +1,65 @@
+import crypto from 'crypto';
 import User from '../models/user.model.js';
 import bcryptjs from 'bcryptjs';
 import { errorHandler } from '../utils/error.js';
-import jwt from 'jsonwebtoken';
+import { setAuthCookie, clearAuthCookie, signAccessToken } from '../utils/security.js';
+import { validateSignup, validateSignin } from '../utils/validation.js';
 
 export const signup = async (req, res, next) => {
-  const { username, email, password } = req.body;
-  const hashedPassword = bcryptjs.hashSync(password, 10);
-  const newUser = new User({ username, email, password: hashedPassword });
+  const validation = validateSignup(req.body);
+  if (!validation.valid) return next(errorHandler(400, validation.message));
+  const { username, email, password } = validation.value;
   try {
-    await newUser.save();
-    res.status(201).json('User created successfully!');
+    const existing = await User.findOne({ $or: [{ email }, { username }] }).lean();
+    if (existing) return next(errorHandler(409, existing.email === email ? 'Email is already registered.' : 'Username is already taken.'));
+    await User.create({ username, email, password: await bcryptjs.hash(password, 12) });
+    return res.status(201).json({ success: true, message: 'User created successfully!' });
   } catch (error) {
-    next(error);
+    if (error?.code === 11000) return next(errorHandler(409, 'Email or username is already in use.'));
+    return next(error);
   }
 };
 
 export const signin = async (req, res, next) => {
-  const { email, password } = req.body;
+  const validation = validateSignin(req.body);
+  if (!validation.valid) return next(errorHandler(400, validation.message));
+  const { email, password } = validation.value;
   try {
     const validUser = await User.findOne({ email });
-    if (!validUser) return next(errorHandler(404, 'User not found!'));
-    const validPassword = bcryptjs.compareSync(password, validUser.password);
-    if (!validPassword) return next(errorHandler(401, 'Wrong credentials!'));
-    const token = jwt.sign({ id: validUser._id }, process.env.JWT_SECRET);
-    const { password: pass, ...rest } = validUser._doc;
-    res
-      .cookie('access_token', token, { httpOnly: true })
-      .status(200)
-      .json(rest);
-  } catch (error) {
-    next(error);
-  }
+    if (!validUser || !(await bcryptjs.compare(password, validUser.password))) return next(errorHandler(401, 'Invalid email or password.'));
+    const token = signAccessToken(validUser._id);
+    const { password: _pass, ...rest } = validUser.toObject();
+    setAuthCookie(res, token);
+    return res.status(200).json(rest);
+  } catch (error) { return next(error); }
 };
 
 export const google = async (req, res, next) => {
+  const idToken = typeof req.body?.idToken === 'string' ? req.body.idToken : '';
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  if (!idToken || !projectId) return next(errorHandler(400, 'Google authentication is not configured correctly.'));
   try {
-    const user = await User.findOne({ email: req.body.email });
-    if (user) {
-      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
-      const { password: pass, ...rest } = user._doc;
-      res
-        .cookie('access_token', token, { httpOnly: true })
-        .status(200)
-        .json(rest);
-    } else {
-      const generatedPassword =
-        Math.random().toString(36).slice(-8) +
-        Math.random().toString(36).slice(-8);
-      const hashedPassword = bcryptjs.hashSync(generatedPassword, 10);
-      const newUser = new User({
-        username:
-          req.body.name.split(' ').join('').toLowerCase() +
-          Math.random().toString(36).slice(-4),
-        email: req.body.email,
-        password: hashedPassword,
-        avatar: req.body.photo,
-      });
-      await newUser.save();
-      const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET);
-      const { password: pass, ...rest } = newUser._doc;
-      res
-        .cookie('access_token', token, { httpOnly: true })
-        .status(200)
-        .json(rest);
+    const response = await fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(idToken));
+    if (!response.ok) return next(errorHandler(401, 'Invalid Google authentication token.'));
+    const claims = await response.json();
+    if (claims.iss !== 'https://securetoken.google.com/' + projectId || claims.aud !== projectId || claims.email_verified !== 'true') return next(errorHandler(401, 'Invalid Google authentication token.'));
+    const email = claims.email?.toLowerCase();
+    if (!email) return next(errorHandler(401, 'Google account email is unavailable.'));
+    const usernameBase = String(claims.name || email.split('@')[0] || 'user').replace(/[^a-zA-Z0-9_.-]/g, '').slice(0, 24) || 'user';
+    let user = await User.findOne({ email });
+    if (!user) {
+      let username = usernameBase;
+      for (let i = 0; await User.exists({ username }); i += 1) username = (usernameBase + (i + 1)).slice(0, 30);
+      user = await User.create({ username, email, password: await bcryptjs.hash(crypto.randomUUID() + crypto.randomUUID(), 12), avatar: claims.picture });
     }
-  } catch (error) {
-    next(error);
-  }
+    const token = signAccessToken(user._id);
+    const { password: _pass, ...rest } = user.toObject();
+    setAuthCookie(res, token);
+    return res.status(200).json(rest);
+  } catch (error) { return next(error); }
 };
 
 export const signOut = async (req, res, next) => {
-  try {
-    res.clearCookie('access_token');
-    res.status(200).json('User has been logged out!');
-  } catch (error) {
-    next(error);
-  }
+  try { clearAuthCookie(res); return res.status(200).json({ success: true, message: 'User has been logged out!' }); }
+  catch (error) { return next(error); }
 };
