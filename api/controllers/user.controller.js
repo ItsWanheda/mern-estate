@@ -41,10 +41,25 @@ export const deleteUser = async (req, res, next) => {
     const user = await User.findById(req.params.id).select('_id avatar').lean();
     if (!user) return next(errorHandler(404, 'User not found!'));
 
-    const listings = await Listing.find({ userRef: req.params.id }).select('imageUrls').lean();
-    const listingImageUrls = listings.flatMap((listing) => listing.imageUrls || []);
-    await Listing.deleteMany({ userRef: req.params.id });
-    await User.findByIdAndDelete(req.params.id);
+    const session = await mongoose.startSession();
+    let listingImageUrls = [];
+
+    try {
+      await session.withTransaction(async () => {
+        const listings = await Listing.find({ userRef: req.params.id })
+          .select('imageUrls')
+          .session(session)
+          .lean();
+        listingImageUrls = listings.flatMap((listing) => listing.imageUrls || []);
+
+        await Listing.deleteMany({ userRef: req.params.id }, { session });
+        const deletedUser = await User.findOneAndDelete({ _id: req.params.id }, { session });
+        if (!deletedUser) throw errorHandler(404, 'User not found!');
+      });
+    } finally {
+      await session.endSession();
+    }
+
     await cleanupStoredImages(req, [...listingImageUrls, user.avatar]);
 
     clearAuthCookie(res);
