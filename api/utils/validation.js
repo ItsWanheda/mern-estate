@@ -8,7 +8,7 @@ export function validateSignup(body = {}) {
   const email = text(body.email).toLowerCase();
   const password = typeof body.password === 'string' ? body.password : '';
   if (username.length < 3 || username.length > 30 || !/^[a-zA-Z0-9_.-]+$/.test(username)) return fail('Username is invalid.');
-  if (!EMAIL_RE.test(email) || email.length > 254) return fail('Please provide a valid email address.');
+  if (email.length > 254 || !EMAIL_RE.test(email)) return fail('Please provide a valid email address.');
   if (password.length < 8 || password.length > 128) return fail('Password must be between 8 and 128 characters.');
   return ok({ username, email, password });
 }
@@ -16,7 +16,7 @@ export function validateSignup(body = {}) {
 export function validateSignin(body = {}) {
   const email = text(body.email).toLowerCase();
   const password = typeof body.password === 'string' ? body.password : '';
-  if (!EMAIL_RE.test(email) || email.length > 254) return fail('Please provide a valid email address.');
+  if (email.length > 254 || !EMAIL_RE.test(email)) return fail('Please provide a valid email address.');
   if (!password) return fail('Password is required.');
   return ok({ email, password });
 }
@@ -55,7 +55,7 @@ export function validateUserUpdate(body = {}) {
   }
   if (body.email !== undefined) {
     const email = text(body.email).toLowerCase();
-    if (!EMAIL_RE.test(email) || email.length > 254) return fail('Please provide a valid email address.');
+    if (email.length > 254 || !EMAIL_RE.test(email)) return fail('Please provide a valid email address.');
     result.email = email;
   }
   if (body.password !== undefined) {
