@@ -27,11 +27,20 @@ export const updateUser = async (req, res, next) => {
 
 export const deleteUser = async (req, res, next) => {
   if (String(req.user.id) !== String(req.params.id)) return next(errorHandler(403, 'You can only delete your own account!'));
+  const session = await mongoose.startSession();
   try {
-    await User.findByIdAndDelete(req.params.id);
+    await session.withTransaction(async () => {
+      const deletedUser = await User.findByIdAndDelete(req.params.id, { session });
+      if (!deletedUser) throw errorHandler(404, 'User not found!');
+      await Listing.deleteMany({ userRef: req.params.id }, { session });
+    });
     clearAuthCookie(res);
-    return res.status(200).json({ success: true, message: 'User has been deleted!' });
-  } catch (error) { return next(error); }
+    return res.status(200).json({ success: true, message: 'User and their listings have been deleted!' });
+  } catch (error) {
+    return next(error);
+  } finally {
+    await session.endSession();
+  }
 };
 
 export const getUserListings = async (req, res, next) => {
