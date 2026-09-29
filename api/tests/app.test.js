@@ -85,6 +85,8 @@ test('protected routes reject unauthenticated requests', async () => {
     }
     const getRes = await fetch(`${t.base}/api/user/507f1f77bcf86cd799439011`);
     assert.equal(getRes.status, 401, 'GET /api/user/:id');
+    const sessionRes = await fetch(`${t.base}/api/auth/session`);
+    assert.equal(sessionRes.status, 401, 'GET /api/auth/session');
   } finally { await t.stop(); }
 });
 
