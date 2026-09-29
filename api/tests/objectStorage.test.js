@@ -15,3 +15,8 @@ test('ignores Firebase Storage objects outside the uploads namespace', () => {
   const url = 'https://firebasestorage.googleapis.com/v0/b/test-project.firebasestorage.app/o/private%2Fimage.jpg?alt=media';
   assert.equal(getStoragePathFromUrl(url), null);
 });
+
+test('extracts only configured Firebase uploads paths', () => {
+  const url = 'https://firebasestorage.googleapis.com/v0/b/test-project.firebasestorage.app/o/uploads%2F123-image.jpg?alt=media&token=test';
+  assert.equal(getStoragePathFromUrl(url), 'uploads/123-image.jpg');
+});
