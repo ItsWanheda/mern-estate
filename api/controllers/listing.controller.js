@@ -56,7 +56,7 @@ export const getListing = async (req, res, next) => {
   } catch (error) { return next(error); }
 };
 
-export const escapeRegex = (value) => value.replace(/[.*+?^$\\{}()|[\\]\\\\]/g, '\\\\$&');
+export const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\export const escapeRegex = (value) => value.replace(/[.*+?^$\\{}()|[\\]\\\\]/g, '\\\\$&');');
 
 const ALLOWED_SORTS = new Set(['createdAt', 'regularPrice', 'discountPrice', 'bedrooms', 'bathrooms', 'name']);
 const NUMERIC_SORTS = new Set(['regularPrice', 'discountPrice', 'bedrooms', 'bathrooms']);
