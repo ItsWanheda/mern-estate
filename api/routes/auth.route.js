@@ -8,6 +8,6 @@ export const createAuthRouter = ({ authLimiter }) => {
   router.post('/signin', authLimiter, signin);
   router.post('/google', authLimiter, google);
   router.post('/signout', signOut);
-  router.get('/session', verifyToken, getSession);
+  router.get('/session', authLimiter, verifyToken, getSession);
   return router;
 };
