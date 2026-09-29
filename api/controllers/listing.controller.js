@@ -47,6 +47,23 @@ export const getListing = async (req, res, next) => {
 
 export const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+const encodeCursor = ({ value, id, sort }) => Buffer.from(JSON.stringify({ value, id, sort }), 'utf8').toString('base64url');
+
+const decodeCursor = (cursor, sort) => {
+  try {
+    const parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
+    if (!parsed?.id || !mongoose.isValidObjectId(parsed.id) || parsed.sort !== sort) return null;
+    let value = parsed.value;
+    if (sort === 'createdAt') value = new Date(value);
+    else if (['regularPrice', 'discountPrice', 'bedrooms', 'bathrooms'].includes(sort)) value = Number(value);
+    if (sort === 'createdAt' && Number.isNaN(value.getTime())) return null;
+    if (typeof value === 'number' && !Number.isFinite(value)) return null;
+    return { value, id: parsed.id };
+  } catch {
+    return null;
+  }
+};
+
 export const getListings = async (req, res, next) => {
   try {
     const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 9, 1), 50);
@@ -56,12 +73,39 @@ export const getListings = async (req, res, next) => {
     const sort = allowedSorts.has(req.query.sort) ? req.query.sort : 'createdAt';
     const order = req.query.order === 'asc' ? 1 : -1;
     const filter = {};
-    if (searchTerm) filter.name = { $regex: escapeRegex(searchTerm), $options: 'i' };
+
+    if (searchTerm) filter.$text = { $search: searchTerm };
     if (['true', 'false'].includes(req.query.offer)) filter.offer = req.query.offer === 'true';
     if (['true', 'false'].includes(req.query.furnished)) filter.furnished = req.query.furnished === 'true';
     if (['true', 'false'].includes(req.query.parking)) filter.parking = req.query.parking === 'true';
-    if (['sale', 'rent'].includes(req.query.type)) filter.type = req.query.type;
-    const listings = await Listing.find(filter).sort({ [sort]: order }).limit(limit).skip(startIndex).lean();
+    if (['sale', 'rent'].includes(req.query.type)) filter.type = { $eq: req.query.type };
+
+    const cursor = typeof req.query.cursor === 'string' ? decodeCursor(req.query.cursor, sort) : null;
+    if (req.query.cursor && !cursor) return next(errorHandler(400, 'Invalid pagination cursor.'));
+
+    const sortSpec = { [sort]: order, _id: order };
+    if (cursor) {
+      const operator = order === 1 ? '$gt' : '$lt';
+      filter.$and = [
+        { $or: [{ [sort]: { [operator]: cursor.value } }, { [sort]: cursor.value, _id: { [operator]: cursor.id } }] },
+      ];
+    }
+
+    const query = Listing.find(filter).sort(sortSpec).limit(limit + 1).lean();
+    if (!cursor && startIndex) query.skip(startIndex);
+
+    const rows = await query;
+    const hasMore = rows.length > limit;
+    const listings = hasMore ? rows.slice(0, limit) : rows;
+
+    res.setHeader('X-Has-More', String(hasMore));
+    if (hasMore) {
+      const last = listings[listings.length - 1];
+      res.setHeader('X-Next-Cursor', encodeCursor({ value: last[sort], id: last._id, sort }));
+    } else {
+      res.setHeader('X-Next-Cursor', '');
+    }
+
     return res.status(200).json(listings);
   } catch (error) { return next(error); }
 };

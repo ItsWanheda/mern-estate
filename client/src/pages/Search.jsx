@@ -17,6 +17,7 @@ export default function Search() {
   const [loading, setLoading] = useState(false);
   const [listings, setListings] = useState([]);
   const [showMore, setShowMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState('');
 
   useEffect(() => {
     const urlParams = new URLSearchParams(location.search);
@@ -54,11 +55,8 @@ export default function Search() {
       const searchQuery = urlParams.toString();
       const res = await fetch(`/api/listing/get?${searchQuery}`);
       const data = await res.json();
-      if (data.length > 8) {
-        setShowMore(true);
-      } else {
-        setShowMore(false);
-      }
+      setShowMore(res.headers.get('X-Has-More') === 'true');
+      setNextCursor(res.headers.get('X-Next-Cursor') || '');
       setListings(data);
       setLoading(false);
     };
@@ -115,17 +113,14 @@ export default function Search() {
   };
 
   const onShowMoreClick = async () => {
-    const numberOfListings = listings.length;
-    const startIndex = numberOfListings;
+    if (!nextCursor) return;
     const urlParams = new URLSearchParams(location.search);
-    urlParams.set('startIndex', startIndex);
-    const searchQuery = urlParams.toString();
-    const res = await fetch(`/api/listing/get?${searchQuery}`);
+    urlParams.set('cursor', nextCursor);
+    const res = await fetch(`/api/listing/get?${urlParams.toString()}`);
     const data = await res.json();
-    if (data.length < 9) {
-      setShowMore(false);
-    }
-    setListings([...listings, ...data]);
+    setShowMore(res.headers.get('X-Has-More') === 'true');
+    setNextCursor(res.headers.get('X-Next-Cursor') || '');
+    setListings((prev) => [...prev, ...data]);
   };
   return (
     <div className='flex flex-col md:flex-row'>

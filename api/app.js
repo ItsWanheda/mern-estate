@@ -65,7 +65,6 @@ export function createApp({ config = loadConfig(), logger = createLogger({ level
   app.use('/api/auth', createAuthRouter({ authLimiter }));
   app.use('/api/listing', listingRouter);
   app.use('/api/upload', uploadRouter);
-  app.use('/api/uploads', express.static(path.join(rootDir, 'api', 'uploads')));
 
   // Unknown API paths must be a JSON 404, never the SPA shell.
   app.use('/api', (req, res) => res.status(404).json({ success: false, statusCode: 404, message: 'Not found.', requestId: req.id }));
@@ -81,6 +80,7 @@ export function createApp({ config = loadConfig(), logger = createLogger({ level
     let message = err.message || 'Internal Server Error';
     if (err.type === 'entity.parse.failed') { statusCode = 400; message = 'Malformed JSON body.'; }
     else if (err.type === 'entity.too.large') { statusCode = 413; message = 'Request body too large.'; }
+    else if (err.code === 'LIMIT_FILE_SIZE') { statusCode = 413; message = 'Uploaded file is too large.'; }
     else if (statusCode >= 500 && config.isProduction) message = 'Internal Server Error';
     if (statusCode >= 500) (req.log || logger).error({ err }, 'unhandled error');
     res.status(statusCode).json({ success: false, statusCode, message, requestId: req.id });

@@ -23,5 +23,6 @@ listingSchema.pre('validate', function (next) {
 
 listingSchema.index({ type: 1, offer: 1, furnished: 1, parking: 1, createdAt: -1 });
 listingSchema.index({ name: 1 });
+listingSchema.index({ name: 'text' });
 
 export default mongoose.model('Listing', listingSchema);

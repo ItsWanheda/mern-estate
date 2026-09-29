@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 
 export default function Contact({ listing }) {
   const [landlord, setLandlord] = useState(null);
@@ -20,6 +19,8 @@ export default function Contact({ listing }) {
     };
     fetchLandlord();
   }, [listing.userRef]);
+  const mailtoHref = `mailto:${landlord.email}?subject=${encodeURIComponent(`Regarding ${listing.name}`)}&body=${encodeURIComponent(message)}`;
+
   return (
     <>
       {landlord && (
@@ -39,12 +40,12 @@ export default function Contact({ listing }) {
             className='w-full border p-3 rounded-lg'
           ></textarea>
 
-          <Link
-          to={`mailto:${landlord.email}?subject=Regarding ${listing.name}&body=${message}`}
-          className='bg-slate-700 text-white text-center p-3 uppercase rounded-lg hover:opacity-95'
+          <a
+            href={mailtoHref}
+            className='bg-slate-700 text-white text-center p-3 uppercase rounded-lg hover:opacity-95'
           >
-            Send Message          
-          </Link>
+            Send Message
+          </a>
         </div>
       )}
     </>

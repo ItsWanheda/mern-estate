@@ -28,10 +28,17 @@ export const updateUser = async (req, res, next) => {
 export const deleteUser = async (req, res, next) => {
   if (String(req.user.id) !== String(req.params.id)) return next(errorHandler(403, 'You can only delete your own account!'));
   try {
+    const user = await User.findById(req.params.id).select('_id').lean();
+    if (!user) return next(errorHandler(404, 'User not found!'));
+
+    await Listing.deleteMany({ userRef: req.params.id });
     await User.findByIdAndDelete(req.params.id);
+
     clearAuthCookie(res);
-    return res.status(200).json({ success: true, message: 'User has been deleted!' });
-  } catch (error) { return next(error); }
+    return res.status(200).json({ success: true, message: 'User and their listings have been deleted!' });
+  } catch (error) {
+    return next(error);
+  }
 };
 
 export const getUserListings = async (req, res, next) => {
