@@ -78,7 +78,7 @@ export const getListings = async (req, res, next) => {
     if (['true', 'false'].includes(req.query.offer)) filter.offer = req.query.offer === 'true';
     if (['true', 'false'].includes(req.query.furnished)) filter.furnished = req.query.furnished === 'true';
     if (['true', 'false'].includes(req.query.parking)) filter.parking = req.query.parking === 'true';
-    if (['sale', 'rent'].includes(req.query.type)) filter.type = req.query.type;
+    if (['sale', 'rent'].includes(req.query.type)) filter.type = { $eq: req.query.type };
 
     const cursor = typeof req.query.cursor === 'string' ? decodeCursor(req.query.cursor, sort) : null;
     if (req.query.cursor && !cursor) return next(errorHandler(400, 'Invalid pagination cursor.'));
