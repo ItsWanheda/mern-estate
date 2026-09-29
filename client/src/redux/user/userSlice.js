@@ -4,12 +4,26 @@ const initialState = {
   currentUser: null,
   error: null,
   loading: false,
+  authHydrated: false,
 };
 
 const userSlice = createSlice({
   name: 'user',
   initialState,
   reducers: {
+    hydrateUserStart: (state) => {
+      state.authHydrated = false;
+    },
+    hydrateUserSuccess: (state, action) => {
+      state.currentUser = action.payload;
+      state.authHydrated = true;
+      state.error = null;
+    },
+    hydrateUserFailure: (state) => {
+      state.currentUser = null;
+      state.authHydrated = true;
+      state.error = null;
+    },
     signInStart: (state) => {
       state.loading = true;
     },
@@ -62,6 +76,9 @@ const userSlice = createSlice({
 });
 
 export const {
+  hydrateUserStart,
+  hydrateUserSuccess,
+  hydrateUserFailure,
   signInStart,
   signInSuccess,
   signInFailure,
