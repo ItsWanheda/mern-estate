@@ -43,3 +43,39 @@ test('rejects more than six images', () => {
   });
   assert.equal(result.valid, false);
 });
+
+test('accepts safe local uploaded image URLs', () => {
+  const result = validateListing({
+    name: 'Uploaded Listing',
+    description: 'A sufficiently long description.',
+    address: '123 Main Street',
+    type: 'sale',
+    regularPrice: 100000,
+    discountPrice: 90000,
+    bedrooms: 2,
+    bathrooms: 2,
+    furnished: false,
+    parking: true,
+    offer: false,
+    imageUrls: ['/api/uploads/123456-abcdef.jpg'],
+  });
+  assert.equal(result.valid, true);
+});
+
+test('rejects unsafe local image URLs', () => {
+  const result = validateListing({
+    name: 'Unsafe Listing',
+    description: 'A sufficiently long description.',
+    address: '123 Main Street',
+    type: 'sale',
+    regularPrice: 100000,
+    discountPrice: 90000,
+    bedrooms: 2,
+    bathrooms: 2,
+    furnished: false,
+    parking: true,
+    offer: false,
+    imageUrls: ['/api/uploads/../../secret.txt'],
+  });
+  assert.equal(result.valid, false);
+});
