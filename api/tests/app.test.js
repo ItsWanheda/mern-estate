@@ -76,10 +76,15 @@ test('oversized bodies are rejected with 413', async () => {
 test('protected routes reject unauthenticated requests', async () => {
   const t = await startTestApp();
   try {
-    for (const [method, path] of [['POST', '/api/listing/create'], ['DELETE', '/api/listing/delete/507f1f77bcf86cd799439011'], ['GET', '/api/user/507f1f77bcf86cd799439011']]) {
-      const res = await fetch(`${t.base}${path}`, { method });
+    const tokenRes = await fetch(`${t.base}/api/csrf`);
+    const token = (await tokenRes.json()).csrfToken;
+    const csrfHeaders = { cookie: `csrf_token=${token}`, 'x-csrf-token': token };
+    for (const [method, path] of [['POST', '/api/listing/create'], ['DELETE', '/api/listing/delete/507f1f77bcf86cd799439011']]) {
+      const res = await fetch(`${t.base}${path}`, { method, headers: csrfHeaders });
       assert.equal(res.status, 401, `${method} ${path}`);
     }
+    const getRes = await fetch(`${t.base}/api/user/507f1f77bcf86cd799439011`);
+    assert.equal(getRes.status, 401, 'GET /api/user/:id');
   } finally { await t.stop(); }
 });
 
@@ -146,10 +151,16 @@ test('CSRF protection requires a token on state-changing API requests', async ()
 test('auth limiter returns 429 with Retry-After after the configured attempts', async () => {
   const t = await startTestApp({ AUTH_RATE_LIMIT_MAX: '3' });
   try {
+    const tokenRes = await fetch(`${t.base}/api/csrf`);
+    const token = (await tokenRes.json()).csrfToken;
     const statuses = [];
     let last;
     for (let i = 0; i < 5; i += 1) {
-      last = await fetch(`${t.base}/api/auth/signin`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+      last = await fetch(`${t.base}/api/auth/signin`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie: `csrf_token=${token}`, 'x-csrf-token': token },
+        body: '{}',
+      });
       statuses.push(last.status);
     }
     assert.deepEqual(statuses, [400, 400, 400, 429, 429]);
