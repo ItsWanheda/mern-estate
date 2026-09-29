@@ -16,9 +16,9 @@ A full-stack real estate marketplace built with **MongoDB, Express, React, Node.
 - 📄 View detailed property pages with image galleries
 - 👤 User registration, sign-in, sign-out, and profile management
 - 🔐 JWT authentication stored in an HTTP-only cookie
-- 🔑 Google authentication through Firebase-issued ID tokens
+- 🔑 Google authentication through Firebase-issued ID tokens verified server-side with the Firebase Admin SDK
 - 📝 Create, update, and delete your own property listings
-- 🖼️ Upload listing and profile images directly to the API
+- 🖼️ Upload listing and profile images through the API into durable Firebase Cloud Storage
 - 📧 Contact a landlord through a pre-filled email message
 - 📱 Responsive UI built with React and Tailwind CSS
 - 🧠 Redux Toolkit + Redux Persist for client-side user state
@@ -149,11 +149,16 @@ JWT_SECRET=replace-with-a-long-random-secret
 JWT_EXPIRES_IN=7d
 ```
 
-For Google authentication, also configure:
+For Google authentication and durable image storage, configure:
 
 ```env
 FIREBASE_PROJECT_ID=your-firebase-project-id
+FIREBASE_STORAGE_BUCKET=your-project.appspot.com
+FIREBASE_CLIENT_EMAIL=your-service-account@your-project.iam.gserviceaccount.com
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n"
 ```
+
+On Google-managed infrastructure, Application Default Credentials can be used instead of the client email/private key.
 
 If Redis is running locally:
 
@@ -257,7 +262,10 @@ For production, set `NODE_ENV=production`, provide a strong `JWT_SECRET` (at lea
 | `AUTH_RATE_LIMIT_WINDOW_MS` | No | Authentication rate-limit window | `900000` |
 | `REQUEST_TIMEOUT_MS` | No | HTTP request timeout | `30000` |
 | `SHUTDOWN_TIMEOUT_MS` | No | Graceful shutdown timeout | `10000` |
-| `FIREBASE_PROJECT_ID` | Google auth | Firebase project ID | `your-project-id` |
+| `FIREBASE_PROJECT_ID` | Google auth/storage | Firebase project ID | `your-project-id` |
+| `FIREBASE_STORAGE_BUCKET` | Image storage | Firebase Cloud Storage bucket | `your-project.appspot.com` |
+| `FIREBASE_CLIENT_EMAIL` | Optional | Service-account client email when not using ADC | `...iam.gserviceaccount.com` |
+| `FIREBASE_PRIVATE_KEY` | Optional | Service-account private key when not using ADC | `-----BEGIN PRIVATE KEY-----...` |
 
 \* Required unless running in the test environment.
 
@@ -346,7 +354,8 @@ Because uploads are stored on the application filesystem, production deployments
 | POST | `/api/auth/signup` | No | Create an account |
 | POST | `/api/auth/signin` | No | Sign in |
 | POST | `/api/auth/google` | No | Authenticate with a Firebase Google ID token |
-| GET | `/api/auth/signout` | No | Clear the auth cookie |
+| POST | `/api/auth/signout` | No | Clear the auth cookie |
+| GET | `/api/auth/session` | Yes | Hydrate the current server-side session/user |
 
 ### Listings
 
@@ -368,7 +377,8 @@ furnished=true|false
 parking=true|false
 sort=createdAt|regularPrice|discountPrice|bedrooms|bathrooms|name
 order=asc|desc
-startIndex
+startIndex (legacy offset pagination)
+cursor (preferred cursor pagination)
 limit
 ```
 
