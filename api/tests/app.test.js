@@ -102,6 +102,46 @@ test('CORS: no headers by default, allowlisted origins only, preflight handled',
   } finally { await t.stop(); }
 });
 
+
+test('CSRF protection requires a token on state-changing API requests', async () => {
+  const t = await startTestApp();
+  try {
+    const missing = await fetch(`${t.base}/api/auth/signin`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{}',
+    });
+    assert.equal(missing.status, 403);
+
+    const tokenRes = await fetch(`${t.base}/api/csrf`);
+    const tokenBody = await tokenRes.json();
+    assert.match(tokenBody.csrfToken, /^[0-9a-f]{64}$/);
+    assert.match(tokenRes.headers.get('set-cookie') || '', /csrf_token=/);
+
+    const invalid = await fetch(`${t.base}/api/auth/signin`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `csrf_token=${tokenBody.csrfToken}`,
+        'x-csrf-token': '0'.repeat(64),
+      },
+      body: '{}',
+    });
+    assert.equal(invalid.status, 403);
+
+    const valid = await fetch(`${t.base}/api/auth/signin`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: `csrf_token=${tokenBody.csrfToken}`,
+        'x-csrf-token': tokenBody.csrfToken,
+      },
+      body: '{}',
+    });
+    assert.equal(valid.status, 400);
+  } finally { await t.stop(); }
+});
+
 test('auth limiter returns 429 with Retry-After after the configured attempts', async () => {
   const t = await startTestApp({ AUTH_RATE_LIMIT_MAX: '3' });
   try {
