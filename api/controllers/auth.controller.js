@@ -4,6 +4,7 @@ import bcryptjs from 'bcryptjs';
 import { errorHandler } from '../utils/error.js';
 import { setAuthCookie, clearAuthCookie, signAccessToken } from '../utils/security.js';
 import { validateSignup, validateSignin } from '../utils/validation.js';
+import { getFirebaseAuth } from '../utils/firebaseAdmin.js';
 
 export const signup = async (req, res, next) => {
   const validation = validateSignup(req.body);
@@ -36,27 +37,51 @@ export const signin = async (req, res, next) => {
 
 export const google = async (req, res, next) => {
   const idToken = typeof req.body?.idToken === 'string' ? req.body.idToken : '';
-  const projectId = process.env.FIREBASE_PROJECT_ID;
-  if (!idToken || !projectId) return next(errorHandler(400, 'Google authentication is not configured correctly.'));
+  if (!idToken) return next(errorHandler(400, 'Google authentication token is required.'));
+
   try {
-    const response = await fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(idToken));
-    if (!response.ok) return next(errorHandler(401, 'Invalid Google authentication token.'));
-    const claims = await response.json();
-    if (claims.iss !== 'https://securetoken.google.com/' + projectId || claims.aud !== projectId || claims.email_verified !== 'true') return next(errorHandler(401, 'Invalid Google authentication token.'));
+    const claims = await getFirebaseAuth().verifyIdToken(idToken);
+    if (!claims.email_verified) return next(errorHandler(401, 'Google account email is not verified.'));
+
     const email = claims.email?.toLowerCase();
     if (!email) return next(errorHandler(401, 'Google account email is unavailable.'));
-    const usernameBase = String(claims.name || email.split('@')[0] || 'user').replace(/[^a-zA-Z0-9_.-]/g, '').slice(0, 24) || 'user';
+
+    const usernameBase = String(claims.name || email.split('@')[0] || 'user')
+      .replace(/[^a-zA-Z0-9_.-]/g, '')
+      .slice(0, 24) || 'user';
+
     let user = await User.findOne({ email });
     if (!user) {
       let username = usernameBase;
-      for (let i = 0; await User.exists({ username }); i += 1) username = (usernameBase + (i + 1)).slice(0, 30);
-      user = await User.create({ username, email, password: await bcryptjs.hash(crypto.randomUUID() + crypto.randomUUID(), 12), avatar: claims.picture });
+      for (let i = 0; await User.exists({ username }); i += 1) {
+        username = (usernameBase + (i + 1)).slice(0, 30);
+      }
+      user = await User.create({
+        username,
+        email,
+        password: await bcryptjs.hash(crypto.randomUUID() + crypto.randomUUID(), 12),
+        avatar: claims.picture,
+      });
     }
+
     const token = signAccessToken(user._id);
     const { password: _pass, ...rest } = user.toObject();
     setAuthCookie(res, token);
     return res.status(200).json(rest);
-  } catch (error) { return next(error); }
+  } catch (error) {
+    if (error?.code?.startsWith?.('auth/')) return next(errorHandler(401, 'Invalid Google authentication token.'));
+    return next(error);
+  }
+};
+
+export const getSession = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id).select('-password').lean();
+    if (!user) return next(errorHandler(401, 'User account no longer exists.'));
+    return res.status(200).json(user);
+  } catch (error) {
+    return next(error);
+  }
 };
 
 export const signOut = async (req, res, next) => {
