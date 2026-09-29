@@ -2,6 +2,12 @@ import mongoose from 'mongoose';
 import Listing from '../models/listing.model.js';
 import { errorHandler } from '../utils/error.js';
 import { validateListing } from '../utils/validation.js';
+import { deleteStoredImages } from '../utils/objectStorage.js';
+
+const cleanupStoredImages = async (req, urls) => {
+  const errors = await deleteStoredImages(urls);
+  if (errors.length) req.log?.warn({ count: errors.length }, 'failed to delete one or more Firebase Storage objects');
+};
 
 export const createListing = async (req, res, next) => {
   const validation = validateListing(req.body);
@@ -19,6 +25,7 @@ export const deleteListing = async (req, res, next) => {
     if (!listing) return next(errorHandler(404, 'Listing not found!'));
     if (String(req.user.id) !== String(listing.userRef)) return next(errorHandler(403, 'You can only delete your own listings!'));
     await Listing.findByIdAndDelete(req.params.id);
+    await cleanupStoredImages(req, listing.imageUrls);
     return res.status(200).json({ success: true, message: 'Listing has been deleted!' });
   } catch (error) { return next(error); }
 };
@@ -31,7 +38,10 @@ export const updateListing = async (req, res, next) => {
     const listing = await Listing.findById(req.params.id);
     if (!listing) return next(errorHandler(404, 'Listing not found!'));
     if (String(req.user.id) !== String(listing.userRef)) return next(errorHandler(403, 'You can only update your own listings!'));
+    const previousImages = listing.imageUrls;
     const updatedListing = await Listing.findByIdAndUpdate(req.params.id, { $set: validation.value }, { new: true, runValidators: true });
+    const retainedImages = new Set(validation.value.imageUrls);
+    await cleanupStoredImages(req, previousImages.filter((url) => !retainedImages.has(url)));
     return res.status(200).json(updatedListing);
   } catch (error) { return next(error); }
 };
