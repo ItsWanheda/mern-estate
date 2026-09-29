@@ -17,25 +17,36 @@ const request = async (path, options = {}) => {
   return { response, body };
 };
 
-const getCookie = (response) => {
-  const cookies = response.headers.getSetCookie?.() || [];
-  return cookies.map((value) => value.split(';', 1)[0]).find((value) => value.startsWith('access_token='));
+const getCookies = (response) => response.headers.getSetCookie?.() || [];
+const mergeCookies = (jar, response) => {
+  for (const value of getCookies(response)) {
+    const pair = value.split(';', 1)[0];
+    const index = pair.indexOf('=');
+    if (index > 0) jar[pair.slice(0, index)] = pair.slice(index + 1);
+  }
 };
+const cookieHeader = (jar) => Object.entries(jar).map(([name, value]) => `${name}=${value}`).join('; ');
 
 test('production smoke test: auth, session, listing lifecycle, search, and pagination', { skip: missing.length > 0 }, async () => {
+  const cookies = {};
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const username = `e2e_${suffix}`.slice(0, 30);
   const email = `e2e+${suffix}@example.invalid`;
   const imageUrls = ['https://example.com/e2e-home.jpg'];
-  let cookie;
   let userId;
+  let csrfToken;
   let listingId;
 
   const signup = await request('/api/auth/signup', {
     method: 'POST',
     body: JSON.stringify({ username, email, password }),
   });
-  assert.equal(signup.response.status, 201, JSON.stringify(signup.body));
+  mergeCookies(cookies, signup.response);
+  const csrf = await request('/api/csrf', { headers: { Cookie: cookieHeader(cookies) } });
+  assert.equal(csrf.response.status, 200, JSON.stringify(csrf.body));
+  mergeCookies(cookies, csrf.response);
+  csrfToken = csrf.body?.csrfToken;
+  assert.ok(csrfToken);
 
   try {
     const signin = await request('/api/auth/signin', {
@@ -43,11 +54,12 @@ test('production smoke test: auth, session, listing lifecycle, search, and pagin
       body: JSON.stringify({ email, password }),
     });
     assert.equal(signin.response.status, 200, JSON.stringify(signin.body));
-    cookie = getCookie(signin.response);
+    mergeCookies(cookies, signin.response);
+    const cookie = cookieHeader(cookies);
     assert.ok(cookie, 'signin must set the access_token cookie');
     userId = signin.body?._id;
 
-    const session = await request('/api/auth/session', { headers: { Cookie: cookie } });
+    const session = await request('/api/auth/session', { headers: { Cookie: cookieHeader(cookies) } });
     assert.equal(session.response.status, 200, JSON.stringify(session.body));
     assert.equal(session.body?._id, userId);
     assert.equal('password' in (session.body || {}), false);
@@ -69,7 +81,7 @@ test('production smoke test: auth, session, listing lifecycle, search, and pagin
 
     const create = await request('/api/listing/create', {
       method: 'POST',
-      headers: { Cookie: cookie },
+      headers: { Cookie: cookie, 'X-CSRF-Token': csrfToken },
       body: JSON.stringify(payload),
     });
     assert.equal(create.response.status, 201, JSON.stringify(create.body));
@@ -82,8 +94,8 @@ test('production smoke test: auth, session, listing lifecycle, search, and pagin
 
     const update = await request(`/api/listing/update/${listingId}`, {
       method: 'POST',
-      headers: { Cookie: cookie },
-      body: JSON.stringify({ ...payload, name: `E2E Updated Listing ${suffix}`, regularPrice: 260000, discountPrice: 230000 }),
+      headers: { Cookie: cookieHeader(cookies), 'X-CSRF-Token': csrfToken },
+      body: JSON.stringify({ ...payload, imageUrls: [await uploadImage()], name: `E2E Updated Listing ${suffix}`, regularPrice: 260000, discountPrice: 230000 }),
     });
     assert.equal(update.response.status, 200, JSON.stringify(update.body));
 
