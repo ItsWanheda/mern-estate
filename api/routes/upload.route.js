@@ -1,13 +1,9 @@
 import express from 'express';
 import multer from 'multer';
-import path from 'node:path';
-import crypto from 'node:crypto';
-import fs from 'node:fs/promises';
 import { verifyToken } from '../utils/verifyUser.js';
+import { storeImage } from '../utils/objectStorage.js';
 
 const router = express.Router();
-
-const uploadsDir = path.resolve('api/uploads');
 
 const ALLOWED_TYPES = new Map([
   ['image/jpeg', { ext: '.jpg', signature: (b) => b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff }],
@@ -26,21 +22,20 @@ const upload = multer({
 });
 
 router.post('/', verifyToken, upload.single('file'), async (req, res, next) => {
-  if (!req.file) {
-    return res.status(400).json({ success: false, message: 'No file uploaded' });
-  }
+  if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
 
   const type = ALLOWED_TYPES.get(req.file.mimetype);
   if (!type || !type.signature(req.file.buffer)) {
     return res.status(400).json({ success: false, message: 'The uploaded file is not a valid supported image.' });
   }
 
-  const filename = `${Date.now()}-${crypto.randomBytes(16).toString('hex')}${type.ext}`;
-
   try {
-    await fs.mkdir(uploadsDir, { recursive: true });
-    await fs.writeFile(path.join(uploadsDir, filename), req.file.buffer, { flag: 'wx' });
-    return res.status(200).json({ success: true, url: `/api/uploads/${filename}` });
+    const url = await storeImage({
+      buffer: req.file.buffer,
+      contentType: req.file.mimetype,
+      extension: type.ext,
+    });
+    return res.status(200).json({ success: true, url });
   } catch (error) {
     return next(error);
   }
