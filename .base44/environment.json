@@ -1,0 +1,13 @@
+{
+  "previewPort": 3000,
+  "healthPath": "/",
+  "startCommand": "docker compose -f docker-compose.base44.yml up -d",
+  "secrets": [
+    {
+      "name": "VITE_FIREBASE_API_KEY",
+      "description": "Firebase Web API key for the mern-estate project (used by the client for Google OAuth and Storage image uploads). Obtain from Firebase Console > Project settings > General > Web app. Without it the app boots but Google sign-in and image uploads won't work.",
+      "requiredAtBoot": false,
+      "generatedForDevelopment": false
+    }
+  ]
+}

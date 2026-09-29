@@ -6,6 +6,7 @@ import path from 'node:path';
 import userRouter from './routes/user.route.js';
 import { createAuthRouter } from './routes/auth.route.js';
 import listingRouter from './routes/listing.route.js';
+import uploadRouter from './routes/upload.route.js';
 import { securityHeaders } from './utils/security.js';
 import { createLogger, createHttpLogger } from './utils/logger.js';
 import { createCors } from './utils/cors.js';
@@ -56,6 +57,8 @@ export function createApp({ config = loadConfig(), logger = createLogger({ level
   app.use('/api/user', userRouter);
   app.use('/api/auth', createAuthRouter({ authLimiter }));
   app.use('/api/listing', listingRouter);
+  app.use('/api/upload', uploadRouter);
+  app.use('/api/uploads', express.static(path.join(rootDir, 'api', 'uploads')));
 
   // Unknown API paths must be a JSON 404, never the SPA shell.
   app.use('/api', (req, res) => res.status(404).json({ success: false, statusCode: 404, message: 'Not found.', requestId: req.id }));
