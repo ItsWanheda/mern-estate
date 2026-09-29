@@ -173,9 +173,15 @@ test('auth limiter returns 429 with Retry-After after the configured attempts', 
 test('X-Forwarded-For cannot be used to dodge the limiter unless a proxy is trusted', async () => {
   const t = await startTestApp({ AUTH_RATE_LIMIT_MAX: '2', TRUST_PROXY: '0' });
   try {
+    const tokenRes = await fetch(`${t.base}/api/csrf`);
+    const token = (await tokenRes.json()).csrfToken;
     const statuses = [];
     for (let i = 0; i < 4; i += 1) {
-      const res = await fetch(`${t.base}/api/auth/signin`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': `10.0.0.${i}` }, body: '{}' });
+      const res = await fetch(`${t.base}/api/auth/signin`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie: `csrf_token=${token}`, 'x-csrf-token': token, 'x-forwarded-for': `10.0.0.${i}` },
+        body: '{}',
+      });
       statuses.push(res.status);
     }
     assert.deepEqual(statuses, [400, 400, 429, 429]);
