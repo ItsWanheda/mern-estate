@@ -12,6 +12,7 @@ import { createLogger, createHttpLogger } from './utils/logger.js';
 import { createCors } from './utils/cors.js';
 import { pingRedis } from './utils/redis.js';
 import { ResilientStore, createRateLimiter } from './utils/rateLimit.js';
+import { csrfProtection, issueCsrfToken } from './utils/csrf.js';
 
 /**
  * Build the Express app. Nothing here connects to a database or opens a port,
@@ -29,6 +30,8 @@ export function createApp({ config = loadConfig(), logger = createLogger({ level
   app.use(createCors(config.security.corsOrigins));
   app.use(express.json({ limit: config.security.bodyLimit }));
   app.use(cookieParser());
+  app.use('/api', csrfProtection);
+  app.get('/api/csrf', issueCsrfToken);
 
   // Liveness: the process is up. Deliberately independent of dependencies.
   app.get('/api/health', (req, res) => res.status(200).json({ status: 'ok', uptime: Math.round(process.uptime()) }));
