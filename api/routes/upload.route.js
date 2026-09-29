@@ -2,36 +2,48 @@ import express from 'express';
 import multer from 'multer';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import fs from 'node:fs';
+import fs from 'node:fs/promises';
+import { verifyToken } from '../utils/verifyUser.js';
 
 const router = express.Router();
 
 const uploadsDir = path.resolve('api/uploads');
-fs.mkdirSync(uploadsDir, { recursive: true });
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadsDir),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    const hash = crypto.randomBytes(16).toString('hex');
-    cb(null, `${Date.now()}-${hash}${ext}`);
-  },
-});
+const ALLOWED_TYPES = new Map([
+  ['image/jpeg', { ext: '.jpg', signature: (b) => b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff }],
+  ['image/png', { ext: '.png', signature: (b) => b.length >= 8 && b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) }],
+  ['image/gif', { ext: '.gif', signature: (b) => b.length >= 6 && (b.subarray(0, 6).toString() === 'GIF87a' || b.subarray(0, 6).toString() === 'GIF89a') }],
+  ['image/webp', { ext: '.webp', signature: (b) => b.length >= 12 && b.subarray(0, 4).toString() === 'RIFF' && b.subarray(8, 12).toString() === 'WEBP' }],
+]);
 
 const upload = multer({
-  storage,
-  limits: { fileSize: 2 * 1024 * 1024 },
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024, files: 1 },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) cb(null, true);
-    else cb(new Error('Only image files are allowed'));
+    if (ALLOWED_TYPES.has(file.mimetype)) return cb(null, true);
+    return cb(new Error('Only JPEG, PNG, GIF, and WebP images are allowed'));
   },
 });
 
-router.post('/', upload.single('file'), (req, res) => {
+router.post('/', verifyToken, upload.single('file'), async (req, res, next) => {
   if (!req.file) {
     return res.status(400).json({ success: false, message: 'No file uploaded' });
   }
-  res.status(200).json({ success: true, url: `/api/uploads/${req.file.filename}` });
+
+  const type = ALLOWED_TYPES.get(req.file.mimetype);
+  if (!type || !type.signature(req.file.buffer)) {
+    return res.status(400).json({ success: false, message: 'The uploaded file is not a valid supported image.' });
+  }
+
+  const filename = `${Date.now()}-${crypto.randomBytes(16).toString('hex')}${type.ext}`;
+
+  try {
+    await fs.mkdir(uploadsDir, { recursive: true });
+    await fs.writeFile(path.join(uploadsDir, filename), req.file.buffer, { flag: 'wx' });
+    return res.status(200).json({ success: true, url: `/api/uploads/${filename}` });
+  } catch (error) {
+    return next(error);
+  }
 });
 
 export default router;
