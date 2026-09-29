@@ -17,7 +17,9 @@ const upload = multer({
   limits: { fileSize: 2 * 1024 * 1024, files: 1 },
   fileFilter: (req, file, cb) => {
     if (ALLOWED_TYPES.has(file.mimetype)) return cb(null, true);
-    return cb(new Error('Only JPEG, PNG, GIF, and WebP images are allowed'));
+    const error = new Error('Only JPEG, PNG, GIF, and WebP images are allowed');
+    error.statusCode = 400;
+    return cb(error);
   },
 });
 
