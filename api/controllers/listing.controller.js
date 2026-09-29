@@ -3,6 +3,7 @@ import Listing from '../models/listing.model.js';
 import { errorHandler } from '../utils/error.js';
 import { validateListing } from '../utils/validation.js';
 import { deleteStoredImages } from '../utils/objectStorage.js';
+import { signCursor, verifyCursor } from '../utils/security.js';
 
 const cleanupStoredImages = async (req, urls) => {
   const errors = await deleteStoredImages(urls);
@@ -55,23 +56,35 @@ export const getListing = async (req, res, next) => {
   } catch (error) { return next(error); }
 };
 
-export const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+export const escapeRegex = (value) => value.replace(/[.*+?^$\\{}()|[\\]\\\\]/g, '\\\\$&');
 
-const encodeCursor = ({ value, id, sort }) => Buffer.from(JSON.stringify({ value, id, sort }), 'utf8').toString('base64url');
+const ALLOWED_SORTS = new Set(['createdAt', 'regularPrice', 'discountPrice', 'bedrooms', 'bathrooms', 'name']);
+const NUMERIC_SORTS = new Set(['regularPrice', 'discountPrice', 'bedrooms', 'bathrooms']);
 
-const decodeCursor = (cursor, sort) => {
-  try {
-    const parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
-    if (!parsed?.id || !mongoose.isValidObjectId(parsed.id) || parsed.sort !== sort) return null;
-    let value = parsed.value;
-    if (sort === 'createdAt') value = new Date(value);
-    else if (['regularPrice', 'discountPrice', 'bedrooms', 'bathrooms'].includes(sort)) value = Number(value);
-    if (sort === 'createdAt' && Number.isNaN(value.getTime())) return null;
-    if (typeof value === 'number' && !Number.isFinite(value)) return null;
-    return { value, id: parsed.id };
-  } catch {
+const encodeCursor = ({ value, id, sort, order }) => signCursor({ value, id: String(id), sort, order });
+
+const decodeCursor = (cursor, sort, order) => {
+  const parsed = verifyCursor(cursor);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+  if (typeof parsed.id !== 'string' || !mongoose.isValidObjectId(parsed.id)) return null;
+  if (typeof parsed.sort !== 'string' || parsed.sort !== sort) return null;
+  if (parsed.order !== 1 && parsed.order !== -1) return null;
+
+  let value = parsed.value;
+  if (sort === 'createdAt') {
+    if (typeof value !== 'string') return null;
+    value = new Date(value);
+    if (Number.isNaN(value.getTime())) return null;
+  } else if (NUMERIC_SORTS.has(sort)) {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  } else if (sort === 'name') {
+    if (typeof value !== 'string' || value.length > 100) return null;
+  } else {
     return null;
   }
+
+  if (parsed.order !== order) return null;
+  return { value, id: parsed.id };
 };
 
 export const getListings = async (req, res, next) => {
@@ -79,18 +92,17 @@ export const getListings = async (req, res, next) => {
     const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 9, 1), 50);
     const startIndex = Math.min(Math.max(Number.parseInt(req.query.startIndex, 10) || 0, 0), 100000);
     const searchTerm = typeof req.query.searchTerm === 'string' ? req.query.searchTerm.trim().slice(0, 100) : '';
-    const allowedSorts = new Set(['createdAt', 'regularPrice', 'discountPrice', 'bedrooms', 'bathrooms', 'name']);
-    const sort = allowedSorts.has(req.query.sort) ? req.query.sort : 'createdAt';
+    const sort = ALLOWED_SORTS.has(req.query.sort) ? req.query.sort : 'createdAt';
     const order = req.query.order === 'asc' ? 1 : -1;
     const filter = {};
 
-    if (searchTerm) filter.$text = { $search: searchTerm };
+    if (searchTerm) filter.name = { $regex: escapeRegex(searchTerm), $options: 'i' };
     if (['true', 'false'].includes(req.query.offer)) filter.offer = req.query.offer === 'true';
     if (['true', 'false'].includes(req.query.furnished)) filter.furnished = req.query.furnished === 'true';
     if (['true', 'false'].includes(req.query.parking)) filter.parking = req.query.parking === 'true';
     if (['sale', 'rent'].includes(req.query.type)) filter.type = { $eq: req.query.type };
 
-    const cursor = typeof req.query.cursor === 'string' ? decodeCursor(req.query.cursor, sort) : null;
+    const cursor = typeof req.query.cursor === 'string' ? decodeCursor(req.query.cursor, sort, order) : null;
     if (req.query.cursor && !cursor) return next(errorHandler(400, 'Invalid pagination cursor.'));
 
     const sortSpec = { [sort]: order, _id: order };
@@ -111,7 +123,7 @@ export const getListings = async (req, res, next) => {
     res.setHeader('X-Has-More', String(hasMore));
     if (hasMore) {
       const last = listings[listings.length - 1];
-      res.setHeader('X-Next-Cursor', encodeCursor({ value: last[sort], id: last._id, sort }));
+      res.setHeader('X-Next-Cursor', encodeCursor({ value: last[sort], id: last._id, sort, order }));
     } else {
       res.setHeader('X-Next-Cursor', '');
     }
