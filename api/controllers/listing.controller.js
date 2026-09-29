@@ -47,7 +47,7 @@ export const getListing = async (req, res, next) => {
 
 export const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const encodeCursor = ({ value, id }) => Buffer.from(JSON.stringify({ value, id }), 'utf8').toString('base64url');
+const encodeCursor = ({ value, id, sort }) => Buffer.from(JSON.stringify({ value, id, sort }), 'utf8').toString('base64url');
 
 const decodeCursor = (cursor, sort) => {
   try {
