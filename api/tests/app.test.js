@@ -99,6 +99,7 @@ test('CORS: no headers by default, allowlisted origins only, preflight handled',
     assert.equal(bad.headers.get('access-control-allow-origin'), null);
     const pre = await fetch(`${t.base}/api/auth/signin`, { method: 'OPTIONS', headers: { origin: 'https://app.example.ir', 'access-control-request-method': 'POST' } });
     assert.equal(pre.status, 204);
+    assert.match(pre.headers.get('access-control-allow-headers') || '', /X-CSRF-Token/);
   } finally { await t.stop(); }
 });
 
