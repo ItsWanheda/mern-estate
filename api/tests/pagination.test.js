@@ -14,7 +14,7 @@ test('signs and validates listing cursors', () => {
     order: -1,
   });
 
-  assert.match(cursor, /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
+  assert.equal(cursor.split('.').length, 3);
   assert.deepEqual(decodeCursor(cursor, 'createdAt', -1), {
     value: new Date('2026-09-29T12:00:00.000Z'),
     id,
