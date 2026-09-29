@@ -18,8 +18,7 @@
     "mongodb",
     "express",
     "react",
-    "tailwind",
-    "firebase"
+    "tailwind"
   ],
   "author": "",
   "license": "ISC",
