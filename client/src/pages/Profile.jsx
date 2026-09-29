@@ -8,6 +8,8 @@ import {
   deleteUserStart,
   deleteUserSuccess,
   signOutUserStart,
+  signOutUserSuccess,
+  signOutUserFailure,
 } from '../redux/user/userSlice';
 import { useDispatch } from 'react-redux';
 import { Link } from 'react-router-dom';
@@ -104,12 +106,12 @@ export default function Profile() {
       const res = await apiFetch('/api/auth/signout', { method: 'POST' });
       const data = await res.json();
       if (data.success === false) {
-        dispatch(deleteUserFailure(data.message));
+        dispatch(signOutUserFailure(data.message));
         return;
       }
-      dispatch(deleteUserSuccess(data));
+      dispatch(signOutUserSuccess());
     } catch (error) {
-      dispatch(deleteUserFailure(data.message));
+      dispatch(signOutUserFailure(error.message));
     }
   };
 

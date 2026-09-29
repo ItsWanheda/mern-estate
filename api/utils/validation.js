@@ -2,6 +2,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const fail = (message) => ({ valid: false, message });
 const ok = (value) => ({ valid: true, value });
 const text = (value) => typeof value === 'string' ? value.trim() : '';
+const isImageUrl = (value) => typeof value === 'string' && value.length <= 2048 && (/^https:\/\//i.test(value) || /^\/api\/uploads\/[A-Za-z0-9_-]+\.(?:jpg|jpeg|png|gif|webp)$/i.test(value));
 
 export function validateSignup(body = {}) {
   const username = text(body.username);
@@ -41,7 +42,7 @@ export function validateListing(body = {}) {
   if (!Number.isInteger(bathrooms) || bathrooms < 1 || bathrooms > 100) return fail('Bathrooms are invalid.');
   if (typeof body.furnished !== 'boolean' || typeof body.parking !== 'boolean' || typeof body.offer !== 'boolean') return fail('Listing flags must be boolean values.');
   if (!imageUrls || imageUrls.length < 1 || imageUrls.length > 6) return fail('A listing must contain between 1 and 6 images.');
-  if (imageUrls.some((url) => typeof url !== 'string' || url.length > 2048 || !/^https:\/\//i.test(url))) return fail('Every image must be a valid HTTPS URL.');
+  if (imageUrls.some((url) => !isImageUrl(url))) return fail('Every image must be a valid HTTPS URL or an uploaded image URL.');
 
   return ok({ name, description, address, type: body.type, regularPrice, discountPrice, bedrooms, bathrooms, furnished: body.furnished, parking: body.parking, offer: body.offer, imageUrls });
 }
@@ -63,7 +64,7 @@ export function validateUserUpdate(body = {}) {
     result.password = body.password;
   }
   if (body.avatar !== undefined) {
-    if (typeof body.avatar !== 'string' || body.avatar.length > 2048 || !/^https:\/\//i.test(body.avatar)) return fail('Avatar must be a valid HTTPS URL.');
+    if (!isImageUrl(body.avatar)) return fail('Avatar must be a valid HTTPS URL or an uploaded image URL.');
     result.avatar = body.avatar;
   }
   if (!Object.keys(result).length) return fail('No valid fields were supplied.');
