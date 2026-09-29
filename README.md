@@ -66,7 +66,6 @@ mern-estate/
 │   ├── models/          # Mongoose models
 │   ├── routes/          # Express routes
 │   ├── tests/           # Node.js test suite
-│   ├── uploads/         # Runtime image uploads
 │   ├── utils/           # Security, logging, validation, Redis, etc.
 │   ├── app.js           # Express application factory
 │   └── server.js        # Database/server bootstrap
@@ -333,10 +332,10 @@ Rules enforced by the upload endpoint:
 - Images only
 - Maximum **2 MB per image**
 - Up to **6 images per listing**
-- Files are stored under `api/uploads`
-- Uploaded files are served from `/api/uploads/*`
+- Files are stored in Firebase Cloud Storage
+- The API returns durable Firebase download URLs
 
-Because uploads are stored on the application filesystem, production deployments should account for persistent storage or replace this storage layer with an object-storage service.
+The application filesystem is no longer used for uploaded images.
 
 ## API Reference
 
