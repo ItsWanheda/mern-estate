@@ -63,6 +63,10 @@ export function loadConfig(env = process.env) {
       connectAttempts: int('MONGO_CONNECT_ATTEMPTS', 5, { min: 1, max: 30 }),
     },
     redis: { url: redisUrl },
+    firebase: {
+      projectId: env.FIREBASE_PROJECT_ID || '',
+      storageBucket: env.FIREBASE_STORAGE_BUCKET || '',
+    },
     auth: {
       jwtSecret,
       jwtExpiresIn: env.JWT_EXPIRES_IN || '7d',
@@ -81,6 +85,7 @@ export function loadConfig(env = process.env) {
     },
   };
 
+  if (config.firebase.projectId && !config.firebase.storageBucket) errors.push('FIREBASE_STORAGE_BUCKET is required when FIREBASE_PROJECT_ID is configured.');
   if (config.mongo.minPoolSize > config.mongo.maxPoolSize) errors.push('MONGO_MIN_POOL_SIZE must not exceed MONGO_MAX_POOL_SIZE.');
 
   if (errors.length) throw new Error('Invalid configuration:\n - ' + errors.join('\n - '));
