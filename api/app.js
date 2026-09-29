@@ -30,8 +30,6 @@ export function createApp({ config = loadConfig(), logger = createLogger({ level
   app.use(createCors(config.security.corsOrigins));
   app.use(express.json({ limit: config.security.bodyLimit }));
   app.use(cookieParser());
-  app.use('/api', csrfProtection);
-  app.get('/api/csrf', issueCsrfToken);
 
   // Liveness: the process is up. Deliberately independent of dependencies.
   app.get('/api/health', (req, res) => res.status(200).json({ status: 'ok', uptime: Math.round(process.uptime()) }));
@@ -48,6 +46,8 @@ export function createApp({ config = loadConfig(), logger = createLogger({ level
 
   app.use('/api', (req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
   app.use('/api', createRateLimiter({ name: 'api', windowMs: 60000, max: config.security.apiRateLimitPerMinute, store }));
+  app.use('/api', csrfProtection);
+  app.get('/api/csrf', issueCsrfToken);
 
   const authLimiter = createRateLimiter({
     name: 'auth',
