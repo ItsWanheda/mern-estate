@@ -10,7 +10,8 @@
     "test": "node --test api/tests/*.test.js",
     "lint": "eslint -c api/eslint.config.js api",
     "check": "npm run lint",
-    "build": "npm install && npm install --prefix client && npm run build --prefix client"
+    "build": "npm install && npm install --prefix client && npm run build --prefix client",
+    "test:e2e": "node --test api/tests/e2e.production.test.js"
   },
   "keywords": [
     "real-estate",
