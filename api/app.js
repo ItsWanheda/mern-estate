@@ -3,6 +3,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import cookieParser from 'cookie-parser';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import userRouter from './routes/user.route.js';
 import { createAuthRouter } from './routes/auth.route.js';
 import listingRouter from './routes/listing.route.js';
@@ -12,7 +13,7 @@ import { createLogger, createHttpLogger } from './utils/logger.js';
 import { createCors } from './utils/cors.js';
 import { pingRedis } from './utils/redis.js';
 import { ResilientStore, createRateLimiter } from './utils/rateLimit.js';
-import { csrfProtection, issueCsrfToken } from './utils/csrf.js';
+import { CSRF_COOKIE, CSRF_HEADER, issueCsrfToken } from './utils/csrf.js';
 
 /**
  * Build the Express app. Nothing here connects to a database or opens a port,
@@ -46,7 +47,32 @@ export function createApp({ config = loadConfig(), logger = createLogger({ level
 
   app.use('/api', (req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
   app.use('/api', createRateLimiter({ name: 'api', windowMs: 60000, max: config.security.apiRateLimitPerMinute, store }));
-  app.use('/api', csrfProtection);
+  app.use('/api', (req, res, next) => {
+    let token = req.cookies?.[CSRF_COOKIE];
+    if (!token) {
+      token = crypto.randomBytes(32).toString('hex');
+      res.cookie(CSRF_COOKIE, token, {
+        httpOnly: false,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 1000,
+        path: '/',
+      });
+    }
+
+    if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return next();
+
+    const supplied = req.get(CSRF_HEADER);
+    if (!supplied || supplied.length !== token.length) {
+      return res.status(403).json({ success: false, statusCode: 403, message: 'Invalid CSRF token.' });
+    }
+
+    if (!crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(token))) {
+      return res.status(403).json({ success: false, statusCode: 403, message: 'Invalid CSRF token.' });
+    }
+
+    return next();
+  });
   app.get('/api/csrf', issueCsrfToken);
 
   const authLimiter = createRateLimiter({
