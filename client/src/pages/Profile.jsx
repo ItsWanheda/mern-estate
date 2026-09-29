@@ -1,13 +1,6 @@
 import { useSelector } from 'react-redux';
 import { useRef, useState, useEffect } from 'react';
 import {
-  getDownloadURL,
-  getStorage,
-  ref,
-  uploadBytesResumable,
-} from 'firebase/storage';
-import { app } from '../firebase';
-import {
   updateUserStart,
   updateUserSuccess,
   updateUserFailure,
@@ -42,28 +35,21 @@ export default function Profile() {
     }
   }, [file]);
 
-  const handleFileUpload = (file) => {
-    const storage = getStorage(app);
-    const fileName = new Date().getTime() + file.name;
-    const storageRef = ref(storage, fileName);
-    const uploadTask = uploadBytesResumable(storageRef, file);
-
-    uploadTask.on(
-      'state_changed',
-      (snapshot) => {
-        const progress =
-          (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        setFilePerc(Math.round(progress));
-      },
-      (error) => {
-        setFileUploadError(true);
-      },
-      () => {
-        getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) =>
-          setFormData({ ...formData, avatar: downloadURL })
-        );
-      }
-    );
+  const handleFileUpload = async (file) => {
+    setFileUploadError(false);
+    setFilePerc(0);
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      const res = await fetch('/api/upload', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message);
+      setFilePerc(100);
+      setFormData((prev) => ({ ...prev, avatar: data.url }));
+    } catch (error) {
+      setFileUploadError(true);
+      setFilePerc(0);
+    }
   };
 
   const handleChange = (e) => {
