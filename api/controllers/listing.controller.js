@@ -50,20 +50,19 @@ export const updateListing = async (req, res, next) => {
 export const getListing = async (req, res, next) => {
   if (!mongoose.isValidObjectId(req.params.id)) return next(errorHandler(400, 'Invalid listing id.'));
   try {
-export const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const listing = await Listing.findById(req.params.id).lean();
     if (!listing) return next(errorHandler(404, 'Listing not found!'));
     return res.status(200).json(listing);
   } catch (error) { return next(error); }
 };
 
-export const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\export const escapeRegex = (value) => value.replace(/[.*+?^$\\{}()|[\\]\\\\]/g, '\\\\$&');');
-
+export const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const ALLOWED_SORTS = new Set(['createdAt', 'regularPrice', 'discountPrice', 'bedrooms', 'bathrooms', 'name']);
 const NUMERIC_SORTS = new Set(['regularPrice', 'discountPrice', 'bedrooms', 'bathrooms']);
 
-const encodeCursor = ({ value, id, sort, order }) => signCursor({ value, id: String(id), sort, order });
+export const encodeCursor = ({ value, id, sort, order }) => signCursor({ value, id: String(id), sort, order });
 
-const decodeCursor = (cursor, sort, order) => {
+export const decodeCursor = (cursor, sort, order) => {
   const parsed = verifyCursor(cursor);
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
   if (typeof parsed.id !== 'string' || !mongoose.isValidObjectId(parsed.id)) return null;
