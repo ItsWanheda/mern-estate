@@ -44,9 +44,9 @@ test('rejects more than six images', () => {
   assert.equal(result.valid, false);
 });
 
-test('accepts safe local uploaded image URLs', () => {
+test('rejects obsolete local upload URLs', () => {
   const result = validateListing({
-    name: 'Uploaded Listing',
+    name: 'Legacy Upload',
     description: 'A sufficiently long description.',
     address: '123 Main Street',
     type: 'sale',
@@ -59,7 +59,7 @@ test('accepts safe local uploaded image URLs', () => {
     offer: false,
     imageUrls: ['/api/uploads/123456-abcdef.jpg'],
   });
-  assert.equal(result.valid, true);
+  assert.equal(result.valid, false);
 });
 
 test('rejects unsafe local image URLs', () => {
