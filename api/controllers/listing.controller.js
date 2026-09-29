@@ -50,7 +50,7 @@ export const updateListing = async (req, res, next) => {
 export const getListing = async (req, res, next) => {
   if (!mongoose.isValidObjectId(req.params.id)) return next(errorHandler(400, 'Invalid listing id.'));
   try {
-    const listing = await Listing.findById(req.params.id).lean();
+export const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     if (!listing) return next(errorHandler(404, 'Listing not found!'));
     return res.status(200).json(listing);
   } catch (error) { return next(error); }
