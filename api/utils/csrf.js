@@ -15,12 +15,17 @@ const tokenOptions = {
 
 const createToken = () => crypto.randomBytes(32).toString('hex');
 
+const setCsrfCookie = (res, token) => {
+  res.cookie(CSRF_COOKIE, token, tokenOptions);
+  res.setHeader('Cache-Control', 'no-store');
+};
+
 export const csrfProtection = (req, res, next) => {
   let token = req.cookies?.[CSRF_COOKIE];
 
   if (!token) {
     token = createToken();
-    res.cookie(CSRF_COOKIE, token, tokenOptions);
+    setCsrfCookie(res, token);
   }
 
   if (!unsafeMethods.has(req.method) || req.method === 'OPTIONS') return next();
@@ -41,7 +46,9 @@ export const issueCsrfToken = (req, res) => {
   let token = req.cookies?.[CSRF_COOKIE];
   if (!token) {
     token = createToken();
-    res.cookie(CSRF_COOKIE, token, tokenOptions);
+    setCsrfCookie(res, token);
+  } else {
+    res.setHeader('Cache-Control', 'no-store');
   }
   return res.status(200).json({ csrfToken: token });
 };
