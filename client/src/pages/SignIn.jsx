@@ -6,7 +6,6 @@ import {
   signInSuccess,
   signInFailure,
 } from '../redux/user/userSlice';
-import OAuth from '../components/OAuth';
 import { apiFetch } from '../utils/api';
 
 export default function SignIn() {
@@ -14,12 +13,14 @@ export default function SignIn() {
   const { loading, error } = useSelector((state) => state.user);
   const navigate = useNavigate();
   const dispatch = useDispatch();
+
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
+    setFormData((prev) => ({
+      ...prev,
       [e.target.id]: e.target.value,
-    });
+    }));
   };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -32,17 +33,19 @@ export default function SignIn() {
         body: JSON.stringify(formData),
       });
       const data = await res.json();
-      console.log(data);
-      if (data.success === false) {
-        dispatch(signInFailure(data.message));
+
+      if (!res.ok || data.success === false) {
+        dispatch(signInFailure(data.message || 'Unable to sign in.'));
         return;
       }
+
       dispatch(signInSuccess(data));
       navigate('/');
     } catch (error) {
       dispatch(signInFailure(error.message));
     }
   };
+
   return (
     <div className='p-3 max-w-lg mx-auto'>
       <h1 className='text-3xl text-center font-semibold my-7'>Sign In</h1>
@@ -53,6 +56,7 @@ export default function SignIn() {
           className='border p-3 rounded-lg'
           id='email'
           onChange={handleChange}
+          required
         />
         <input
           type='password'
@@ -60,6 +64,7 @@ export default function SignIn() {
           className='border p-3 rounded-lg'
           id='password'
           onChange={handleChange}
+          required
         />
 
         <button
@@ -68,11 +73,10 @@ export default function SignIn() {
         >
           {loading ? 'Loading...' : 'Sign In'}
         </button>
-        <OAuth/>
       </form>
       <div className='flex gap-2 mt-5'>
         <p>Dont have an account?</p>
-        <Link to={'/sign-up'}>
+        <Link to='/sign-up'>
           <span className='text-blue-700'>Sign up</span>
         </Link>
       </div>
