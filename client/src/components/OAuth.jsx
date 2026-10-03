@@ -23,7 +23,8 @@ export default function OAuth() {
       if (!res.ok || data.success === false) throw new Error(data.message || 'Google sign-in failed.');
       if (!data.token) throw new Error('Authentication token was not returned.');
       setAccessToken(data.token);
-      dispatch(signInSuccess(data));
+      const { token: _token, ...user } = data;
+      dispatch(signInSuccess(user));
       navigate('/');
     } catch (error) {
       dispatch(signInFailure(error.message));
