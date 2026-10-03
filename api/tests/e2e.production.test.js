@@ -48,7 +48,6 @@ test('production smoke test: auth, session, upload, listing lifecycle, search, a
 
   const signup = await request('/api/auth/signup', {
     method: 'POST',
-    headers: authHeaders(),
     body: JSON.stringify({ username, email, password }),
   });
   assert.equal(signup.response.status, 201, JSON.stringify(signup.body));
