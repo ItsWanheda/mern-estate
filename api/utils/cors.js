@@ -9,10 +9,9 @@ export const createCors = (allowedOrigins = []) => {
     if (origin) res.vary('Origin');
     if (!origin || !allowed.has(origin)) return next();
     res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
     if (req.method === 'OPTIONS') {
       res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type,X-Request-Id,X-CSRF-Token');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type,X-Request-Id,Authorization');
       res.setHeader('Access-Control-Max-Age', '600');
       return res.status(204).end();
     }
