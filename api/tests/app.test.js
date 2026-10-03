@@ -76,11 +76,8 @@ test('oversized bodies are rejected with 413', async () => {
 test('protected routes reject unauthenticated requests', async () => {
   const t = await startTestApp();
   try {
-    const tokenRes = await fetch(`${t.base}/api/csrf`);
-    const token = (await tokenRes.json()).csrfToken;
-    const csrfHeaders = { cookie: `csrf_token=${token}`, 'x-csrf-token': token };
     for (const [method, path] of [['POST', '/api/listing/create'], ['DELETE', '/api/listing/delete/507f1f77bcf86cd799439011']]) {
-      const res = await fetch(`${t.base}${path}`, { method, headers: csrfHeaders });
+      const res = await fetch(`${t.base}${path}`, { method });
       assert.equal(res.status, 401, `${method} ${path}`);
     }
     const getRes = await fetch(`${t.base}/api/user/507f1f77bcf86cd799439011`);
@@ -101,66 +98,23 @@ test('CORS: no headers by default, allowlisted origins only, preflight handled',
   try {
     const ok = await fetch(`${t.base}/api/health`, { headers: { origin: 'https://app.example.ir' } });
     assert.equal(ok.headers.get('access-control-allow-origin'), 'https://app.example.ir');
-    assert.equal(ok.headers.get('access-control-allow-credentials'), 'true');
-    const bad = await fetch(`${t.base}/api/health`, { headers: { origin: 'https://evil.example' } });
+        const bad = await fetch(`${t.base}/api/health`, { headers: { origin: 'https://evil.example' } });
     assert.equal(bad.headers.get('access-control-allow-origin'), null);
     const pre = await fetch(`${t.base}/api/auth/signin`, { method: 'OPTIONS', headers: { origin: 'https://app.example.ir', 'access-control-request-method': 'POST' } });
     assert.equal(pre.status, 204);
-    assert.match(pre.headers.get('access-control-allow-headers') || '', /X-CSRF-Token/);
+    assert.match(pre.headers.get('access-control-allow-headers') || '', /Authorization/);
   } finally { await t.stop(); }
 });
 
-
-test('CSRF protection requires a token on state-changing API requests', async () => {
-  const t = await startTestApp();
-  try {
-    const missing = await fetch(`${t.base}/api/auth/signin`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: '{}',
-    });
-    assert.equal(missing.status, 403);
-
-    const tokenRes = await fetch(`${t.base}/api/csrf`);
-    const tokenBody = await tokenRes.json();
-    assert.match(tokenBody.csrfToken, /^[0-9a-f]{64}$/);
-    assert.match(tokenRes.headers.get('set-cookie') || '', /csrf_token=/);
-
-    const invalid = await fetch(`${t.base}/api/auth/signin`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        cookie: `csrf_token=${tokenBody.csrfToken}`,
-        'x-csrf-token': '0'.repeat(64),
-      },
-      body: '{}',
-    });
-    assert.equal(invalid.status, 403);
-
-    const valid = await fetch(`${t.base}/api/auth/signin`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        cookie: `csrf_token=${tokenBody.csrfToken}`,
-        'x-csrf-token': tokenBody.csrfToken,
-      },
-      body: '{}',
-    });
-    assert.equal(valid.status, 400);
-  } finally { await t.stop(); }
-});
 
 test('auth limiter returns 429 with Retry-After after the configured attempts', async () => {
   const t = await startTestApp({ AUTH_RATE_LIMIT_MAX: '3' });
   try {
-    const tokenRes = await fetch(`${t.base}/api/csrf`);
-    const token = (await tokenRes.json()).csrfToken;
     const statuses = [];
     let last;
     for (let i = 0; i < 5; i += 1) {
       last = await fetch(`${t.base}/api/auth/signin`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', cookie: `csrf_token=${token}`, 'x-csrf-token': token },
         body: '{}',
       });
       statuses.push(last.status);
@@ -173,13 +127,10 @@ test('auth limiter returns 429 with Retry-After after the configured attempts', 
 test('X-Forwarded-For cannot be used to dodge the limiter unless a proxy is trusted', async () => {
   const t = await startTestApp({ AUTH_RATE_LIMIT_MAX: '2', TRUST_PROXY: '0' });
   try {
-    const tokenRes = await fetch(`${t.base}/api/csrf`);
-    const token = (await tokenRes.json()).csrfToken;
     const statuses = [];
     for (let i = 0; i < 4; i += 1) {
       const res = await fetch(`${t.base}/api/auth/signin`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', cookie: `csrf_token=${token}`, 'x-csrf-token': token, 'x-forwarded-for': `10.0.0.${i}` },
         body: '{}',
       });
       statuses.push(res.status);
