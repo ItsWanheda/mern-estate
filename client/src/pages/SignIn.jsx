@@ -45,7 +45,8 @@ export default function SignIn() {
       }
 
       setAccessToken(data.token);
-      dispatch(signInSuccess(data));
+      const { token: _token, ...user } = data;
+      dispatch(signInSuccess(user));
       navigate('/');
     } catch (error) {
       dispatch(signInFailure(error.message));
