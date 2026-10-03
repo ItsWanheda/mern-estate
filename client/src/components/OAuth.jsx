@@ -3,7 +3,7 @@ import { app } from '../firebase';
 import { useDispatch } from 'react-redux';
 import { signInFailure, signInSuccess } from '../redux/user/userSlice';
 import { useNavigate } from 'react-router-dom';
-import { apiFetch } from '../utils/api';
+import { apiFetch, setAccessToken } from '../utils/api';
 
 export default function OAuth() {
   const dispatch = useDispatch();
@@ -21,6 +21,8 @@ export default function OAuth() {
       });
       const data = await res.json();
       if (!res.ok || data.success === false) throw new Error(data.message || 'Google sign-in failed.');
+      if (!data.token) throw new Error('Authentication token was not returned.');
+      setAccessToken(data.token);
       dispatch(signInSuccess(data));
       navigate('/');
     } catch (error) {
