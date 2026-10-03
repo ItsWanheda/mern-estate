@@ -10,6 +10,7 @@ const uploadRateLimiter = createRateLimiter({
   name: 'upload',
   windowMs: 60_000,
   max: 10,
+  store: undefined,
   message: 'Too many upload requests. Please try again later.',
 });
 
