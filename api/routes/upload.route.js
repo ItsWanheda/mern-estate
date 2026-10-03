@@ -8,12 +8,12 @@ export const createUploadRouter = ({ store }) => {
   const router = express.Router();
 
   const uploadRateLimiter = createRateLimiter({
-  name: 'upload',
-  windowMs: 60_000,
-  max: 10,
-  store,
-  message: 'Too many upload requests. Please try again later.',
-});
+    name: 'upload',
+    windowMs: 60_000,
+    max: 10,
+    store,
+    message: 'Too many upload requests. Please try again later.',
+  });
 
 const ALLOWED_TYPES = new Map([
   ['image/jpeg', { ext: '.jpg', signature: (b) => b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff }],
