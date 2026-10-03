@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import User from '../models/user.model.js';
 import bcryptjs from 'bcryptjs';
 import { errorHandler } from '../utils/error.js';
-import { setAuthCookie, clearAuthCookie, signAccessToken } from '../utils/security.js';
+import { signAccessToken } from '../utils/security.js';
 import { validateSignup, validateSignin } from '../utils/validation.js';
 import { getFirebaseAuth } from '../utils/firebaseAdmin.js';
 
@@ -30,8 +30,7 @@ export const signin = async (req, res, next) => {
     if (!validUser || !(await bcryptjs.compare(password, validUser.password))) return next(errorHandler(401, 'Invalid email or password.'));
     const token = signAccessToken(validUser._id);
     const { password: _pass, ...rest } = validUser.toObject();
-    setAuthCookie(res, token);
-    return res.status(200).json(rest);
+    return res.status(200).json({ ...rest, token });
   } catch (error) { return next(error); }
 };
 
@@ -66,8 +65,7 @@ export const google = async (req, res, next) => {
 
     const token = signAccessToken(user._id);
     const { password: _pass, ...rest } = user.toObject();
-    setAuthCookie(res, token);
-    return res.status(200).json(rest);
+    return res.status(200).json({ ...rest, token });
   } catch (error) {
     if (error?.code?.startsWith?.('auth/')) return next(errorHandler(401, 'Invalid Google authentication token.'));
     return next(error);
@@ -85,6 +83,7 @@ export const getSession = async (req, res, next) => {
 };
 
 export const signOut = async (req, res, next) => {
-  try { clearAuthCookie(res); return res.status(200).json({ success: true, message: 'User has been logged out!' }); }
-  catch (error) { return next(error); }
+  try {
+    return res.status(200).json({ success: true, message: 'User has been logged out!' });
+  } catch (error) { return next(error); }
 };
