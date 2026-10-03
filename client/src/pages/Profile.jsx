@@ -13,7 +13,7 @@ import {
 } from '../redux/user/userSlice';
 import { useDispatch } from 'react-redux';
 import { Link } from 'react-router-dom';
-import { apiFetch } from '../utils/api';
+import { apiFetch, clearAccessToken } from '../utils/api';
 export default function Profile() {
   const fileRef = useRef(null);
   const { currentUser, loading, error } = useSelector((state) => state.user);
@@ -94,21 +94,17 @@ export default function Profile() {
         dispatch(deleteUserFailure(data.message));
         return;
       }
+      clearAccessToken();
       dispatch(deleteUserSuccess(data));
     } catch (error) {
       dispatch(deleteUserFailure(error.message));
     }
   };
 
-  const handleSignOut = async () => {
+  const handleSignOut = () => {
     try {
       dispatch(signOutUserStart());
-      const res = await apiFetch('/api/auth/signout', { method: 'POST' });
-      const data = await res.json();
-      if (data.success === false) {
-        dispatch(signOutUserFailure(data.message));
-        return;
-      }
+      clearAccessToken();
       dispatch(signOutUserSuccess());
     } catch (error) {
       dispatch(signOutUserFailure(error.message));

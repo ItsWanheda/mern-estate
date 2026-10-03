@@ -1,60 +1,37 @@
-const unsafeMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const AUTH_STORAGE_KEY = 'mern_estate_access_token';
 
-let csrfToken = null;
-let csrfTokenRequest = null;
-
-const getCsrfToken = async ({ forceRefresh = false } = {}) => {
-  if (!forceRefresh && csrfToken) return csrfToken;
-  if (!forceRefresh && csrfTokenRequest) return csrfTokenRequest;
-
-  csrfTokenRequest = (async () => {
-    const res = await fetch('/api/csrf', {
-      credentials: 'include',
-      cache: 'no-store',
-    });
-    if (!res.ok) throw new Error('Unable to obtain CSRF token.');
-    const data = await res.json();
-    if (typeof data.csrfToken !== 'string' || !data.csrfToken) {
-      throw new Error('Invalid CSRF token response.');
-    }
-    csrfToken = data.csrfToken;
-    return csrfToken;
-  })();
-
+export const getAccessToken = () => {
   try {
-    return await csrfTokenRequest;
-  } finally {
-    csrfTokenRequest = null;
+    return localStorage.getItem(AUTH_STORAGE_KEY);
+  } catch {
+    return null;
   }
 };
 
-const isCsrfFailure = async (res) => {
+export const setAccessToken = (token) => {
+  if (typeof token !== 'string' || !token) throw new Error('Invalid authentication token.');
+  localStorage.setItem(AUTH_STORAGE_KEY, token);
+};
+
+export const clearAccessToken = () => {
   try {
-    const body = await res.clone().json();
-    return /csrf/i.test(body?.message || '');
+    localStorage.removeItem(AUTH_STORAGE_KEY);
   } catch {
-    return false;
+    // Ignore storage access errors during logout.
   }
 };
 
 export const apiFetch = async (input, init = {}) => {
-  const method = String(init.method || 'GET').toUpperCase();
-  const unsafe = unsafeMethods.has(method);
+  const headers = new Headers(init.headers || {});
+  const token = getAccessToken();
 
-  const attempt = async (forceCsrfRefresh = false) => {
-    const options = { ...init, credentials: 'include' };
-    if (unsafe) {
-      const headers = new Headers(init.headers || {});
-      headers.set('X-CSRF-Token', await getCsrfToken({ forceRefresh: forceCsrfRefresh }));
-      options.headers = headers;
-    }
-    return fetch(input, options);
-  };
-
-  let res = await attempt();
-  if (unsafe && res.status === 403 && (await isCsrfFailure(res))) {
-    csrfToken = null;
-    res = await attempt(true);
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
   }
-  return res;
+
+  return fetch(input, {
+    ...init,
+    headers,
+    credentials: 'omit',
+  });
 };

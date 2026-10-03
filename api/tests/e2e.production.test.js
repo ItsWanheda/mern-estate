@@ -5,16 +5,6 @@ const baseUrl = process.env.E2E_BASE_URL?.replace(/\/$/, '');
 const password = process.env.E2E_PASSWORD;
 const missing = ['E2E_BASE_URL', 'E2E_PASSWORD'].filter((name) => !process.env[name]);
 
-const mergeCookies = (jar, response) => {
-  for (const value of response.headers.getSetCookie?.() || []) {
-    const pair = value.split(';', 1)[0];
-    const index = pair.indexOf('=');
-    if (index > 0) jar[pair.slice(0, index)] = pair.slice(index + 1);
-  }
-};
-
-const cookieHeader = (jar) => Object.entries(jar).map(([name, value]) => `${name}=${value}`).join('; ');
-
 const request = async (path, options = {}) => {
   const response = await fetch(`${baseUrl}${path}`, {
     redirect: 'manual',
@@ -22,27 +12,21 @@ const request = async (path, options = {}) => {
     headers: { ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...(options.headers || {}) },
   });
   const text = await response.text();
-  let body = null;
-  try { body = text ? JSON.parse(text) : null; } catch { body = text; }
+  const body = (() => {
+    try { return text ? JSON.parse(text) : null; } catch { return text; }
+  })();
   return { response, body };
 };
 
 test('production smoke test: auth, session, upload, listing lifecycle, search, and pagination', { skip: missing.length > 0 }, async () => {
-  const cookies = {};
+  let accessToken;
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const username = `e2e_${suffix}`.slice(0, 30);
   const email = `e2e+${suffix}@example.invalid`;
-  let csrfToken;
   let userId;
   let listingId;
 
-  const csrf = await request('/api/csrf');
-  assert.equal(csrf.response.status, 200, JSON.stringify(csrf.body));
-  mergeCookies(cookies, csrf.response);
-  csrfToken = csrf.body?.csrfToken;
-  assert.ok(csrfToken);
-
-  const unsafeHeaders = () => ({ Cookie: cookieHeader(cookies), 'X-CSRF-Token': csrfToken });
+  const authHeaders = () => ({ Authorization: `Bearer ${accessToken}` });
 
   const uploadImage = async () => {
     const form = new FormData();
@@ -57,33 +41,30 @@ test('production smoke test: auth, session, upload, listing lifecycle, search, a
       0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
     ]);
     form.append('file', new Blob([png], { type: 'image/png' }), 'e2e.png');
-    const result = await request('/api/upload', { method: 'POST', headers: unsafeHeaders(), body: form });
+    const result = await request('/api/upload', { method: 'POST', headers: authHeaders(), body: form });
     assert.equal(result.response.status, 200, JSON.stringify(result.body));
     assert.ok(result.body?.url);
-    mergeCookies(cookies, result.response);
     return result.body.url;
   };
 
   const signup = await request('/api/auth/signup', {
     method: 'POST',
-    headers: unsafeHeaders(),
     body: JSON.stringify({ username, email, password }),
   });
   assert.equal(signup.response.status, 201, JSON.stringify(signup.body));
-  mergeCookies(cookies, signup.response);
-
+  
   try {
     const signin = await request('/api/auth/signin', {
       method: 'POST',
-      headers: unsafeHeaders(),
       body: JSON.stringify({ email, password }),
     });
     assert.equal(signin.response.status, 200, JSON.stringify(signin.body));
-    mergeCookies(cookies, signin.response);
+    accessToken = signin.body?.token;
+    assert.ok(accessToken);
     userId = signin.body?._id;
     assert.ok(userId);
 
-    const session = await request('/api/auth/session', { headers: { Cookie: cookieHeader(cookies) } });
+    const session = await request('/api/auth/session', { headers: authHeaders() });
     assert.equal(session.response.status, 200, JSON.stringify(session.body));
     assert.equal(session.body?._id, userId);
     assert.equal('password' in (session.body || {}), false);
@@ -106,7 +87,7 @@ test('production smoke test: auth, session, upload, listing lifecycle, search, a
 
     const create = await request('/api/listing/create', {
       method: 'POST',
-      headers: unsafeHeaders(),
+      headers: authHeaders(),
       body: JSON.stringify(payload),
     });
     assert.equal(create.response.status, 201, JSON.stringify(create.body));
@@ -120,7 +101,7 @@ test('production smoke test: auth, session, upload, listing lifecycle, search, a
     const secondImage = await uploadImage();
     const update = await request(`/api/listing/update/${listingId}`, {
       method: 'POST',
-      headers: unsafeHeaders(),
+      headers: authHeaders(),
       body: JSON.stringify({ ...payload, imageUrls: [secondImage], name: `E2E Updated Listing ${suffix}`, regularPrice: 260000, discountPrice: 230000 }),
     });
     assert.equal(update.response.status, 200, JSON.stringify(update.body));
@@ -140,23 +121,23 @@ test('production smoke test: auth, session, upload, listing lifecycle, search, a
 
     const deletedListing = await request(`/api/listing/delete/${listingId}`, {
       method: 'DELETE',
-      headers: unsafeHeaders(),
+      headers: authHeaders(),
     });
     assert.equal(deletedListing.response.status, 200, JSON.stringify(deletedListing.body));
     listingId = undefined;
 
     const deletedUser = await request(`/api/user/delete/${userId}`, {
       method: 'DELETE',
-      headers: unsafeHeaders(),
+      headers: authHeaders(),
     });
     assert.equal(deletedUser.response.status, 200, JSON.stringify(deletedUser.body));
     userId = undefined;
   } finally {
     if (listingId && userId) {
-      await request(`/api/listing/delete/${listingId}`, { method: 'DELETE', headers: unsafeHeaders() });
+      await request(`/api/listing/delete/${listingId}`, { method: 'DELETE', headers: authHeaders() });
     }
     if (userId) {
-      await request(`/api/user/delete/${userId}`, { method: 'DELETE', headers: unsafeHeaders() });
+      await request(`/api/user/delete/${userId}`, { method: 'DELETE', headers: authHeaders() });
     }
   }
 });

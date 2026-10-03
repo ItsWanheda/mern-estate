@@ -1,18 +1,16 @@
 import { loadConfig } from './config/env.js';
 import express from 'express';
 import mongoose from 'mongoose';
-import cookieParser from 'cookie-parser';
 import path from 'node:path';
 import userRouter from './routes/user.route.js';
 import { createAuthRouter } from './routes/auth.route.js';
 import listingRouter from './routes/listing.route.js';
-import uploadRouter from './routes/upload.route.js';
+import { createUploadRouter } from './routes/upload.route.js';
 import { securityHeaders } from './utils/security.js';
 import { createLogger, createHttpLogger } from './utils/logger.js';
 import { createCors } from './utils/cors.js';
 import { pingRedis } from './utils/redis.js';
 import { ResilientStore, createRateLimiter } from './utils/rateLimit.js';
-import { csrfProtection, issueCsrfToken } from './utils/csrf.js';
 
 /**
  * Build the Express app. Nothing here connects to a database or opens a port,
@@ -29,12 +27,6 @@ export function createApp({ config = loadConfig(), logger = createLogger({ level
   app.use(securityHeaders);
   app.use(createCors(config.security.corsOrigins));
   app.use(express.json({ limit: config.security.bodyLimit }));
-  app.use(cookieParser());
-  app.use((req, res, next) => {
-    if (req.path === '/api/health' || req.path === '/api/ready') return next();
-    if (!req.path.startsWith('/api')) return next();
-    return csrfProtection(req, res, next);
-  });
 
   // Liveness: the process is up. Deliberately independent of dependencies.
   app.get('/api/health', (req, res) => res.status(200).json({ status: 'ok', uptime: Math.round(process.uptime()) }));
@@ -51,7 +43,6 @@ export function createApp({ config = loadConfig(), logger = createLogger({ level
 
   app.use('/api', (req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
   app.use('/api', createRateLimiter({ name: 'api', windowMs: 60000, max: config.security.apiRateLimitPerMinute, store }));
-  app.get('/api/csrf', issueCsrfToken);
 
   const authLimiter = createRateLimiter({
     name: 'auth',
@@ -64,7 +55,7 @@ export function createApp({ config = loadConfig(), logger = createLogger({ level
   app.use('/api/user', userRouter);
   app.use('/api/auth', createAuthRouter({ authLimiter }));
   app.use('/api/listing', listingRouter);
-  app.use('/api/upload', uploadRouter);
+  app.use('/api/upload', createUploadRouter({ store }));
 
   // Unknown API paths must be a JSON 404, never the SPA shell.
   app.use('/api', (req, res) => res.status(404).json({ success: false, statusCode: 404, message: 'Not found.', requestId: req.id }));

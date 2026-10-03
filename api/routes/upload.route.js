@@ -2,8 +2,18 @@ import express from 'express';
 import multer from 'multer';
 import { verifyToken } from '../utils/verifyUser.js';
 import { storeImage } from '../utils/objectStorage.js';
+import { createRateLimiter } from '../utils/rateLimit.js';
 
-const router = express.Router();
+export const createUploadRouter = ({ store }) => {
+  const router = express.Router();
+
+  const uploadRateLimiter = createRateLimiter({
+    name: 'upload',
+    windowMs: 60_000,
+    max: 10,
+    store,
+    message: 'Too many upload requests. Please try again later.',
+  });
 
 const ALLOWED_TYPES = new Map([
   ['image/jpeg', { ext: '.jpg', signature: (b) => b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff }],
@@ -23,7 +33,7 @@ const upload = multer({
   },
 });
 
-router.post('/', verifyToken, upload.single('file'), async (req, res, next) => {
+router.post('/', verifyToken, uploadRateLimiter, upload.single('file'), async (req, res, next) => {
   if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
 
   const type = ALLOWED_TYPES.get(req.file.mimetype);
@@ -43,4 +53,5 @@ router.post('/', verifyToken, upload.single('file'), async (req, res, next) => {
   }
 });
 
-export default router;
+  return router;
+};
