@@ -6,7 +6,7 @@ import {
   signInSuccess,
   signInFailure,
 } from '../redux/user/userSlice';
-import { apiFetch } from '../utils/api';
+import { apiFetch, setAccessToken } from '../utils/api';
 
 export default function SignIn() {
   const [formData, setFormData] = useState({});
@@ -39,6 +39,12 @@ export default function SignIn() {
         return;
       }
 
+      if (!data.token) {
+        dispatch(signInFailure('Authentication token was not returned.'));
+        return;
+      }
+
+      setAccessToken(data.token);
       dispatch(signInSuccess(data));
       navigate('/');
     } catch (error) {
