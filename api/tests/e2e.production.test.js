@@ -12,8 +12,9 @@ const request = async (path, options = {}) => {
     headers: { ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...(options.headers || {}) },
   });
   const text = await response.text();
-  let body = null;
-  try { body = text ? JSON.parse(text) : null; } catch { body = text; }
+  const body = (() => {
+    try { return text ? JSON.parse(text) : null; } catch { return text; }
+  })();
   return { response, body };
 };
 
