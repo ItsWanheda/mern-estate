@@ -98,7 +98,7 @@ test('CORS: no headers by default, allowlisted origins only, preflight handled',
   try {
     const ok = await fetch(`${t.base}/api/health`, { headers: { origin: 'https://app.example.ir' } });
     assert.equal(ok.headers.get('access-control-allow-origin'), 'https://app.example.ir');
-        const bad = await fetch(`${t.base}/api/health`, { headers: { origin: 'https://evil.example' } });
+    const bad = await fetch(`${t.base}/api/health`, { headers: { origin: 'https://evil.example' } });
     assert.equal(bad.headers.get('access-control-allow-origin'), null);
     const pre = await fetch(`${t.base}/api/auth/signin`, { method: 'OPTIONS', headers: { origin: 'https://app.example.ir', 'access-control-request-method': 'POST' } });
     assert.equal(pre.status, 204);
@@ -115,6 +115,7 @@ test('auth limiter returns 429 with Retry-After after the configured attempts', 
     for (let i = 0; i < 5; i += 1) {
       last = await fetch(`${t.base}/api/auth/signin`, {
         method: 'POST',
+        headers: { 'content-type': 'application/json' },
         body: '{}',
       });
       statuses.push(last.status);
@@ -131,6 +132,7 @@ test('X-Forwarded-For cannot be used to dodge the limiter unless a proxy is trus
     for (let i = 0; i < 4; i += 1) {
       const res = await fetch(`${t.base}/api/auth/signin`, {
         method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-forwarded-for': `10.0.0.${i}` },
         body: '{}',
       });
       statuses.push(res.status);
