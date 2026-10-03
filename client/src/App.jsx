@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { hydrateUserFailure, hydrateUserStart, hydrateUserSuccess } from './redux/user/userSlice';
-import { apiFetch } from './utils/api';
+import { apiFetch, clearAccessToken, getAccessToken } from './utils/api';
 import Home from './pages/Home';
 import SignIn from './pages/SignIn';
 import SignUp from './pages/SignUp';
@@ -22,16 +22,27 @@ export default function App() {
   useEffect(() => {
     let active = true;
     dispatch(hydrateUserStart());
+
+    if (!getAccessToken()) {
+      dispatch(hydrateUserFailure());
+      return () => { active = false; };
+    }
+
     apiFetch('/api/auth/session')
       .then(async (res) => {
         const data = await res.json();
         if (!active) return;
-        if (res.ok && data?._id) dispatch(hydrateUserSuccess(data));
-        else dispatch(hydrateUserFailure());
+        if (res.ok && data?._id) {
+          dispatch(hydrateUserSuccess(data));
+        } else {
+          clearAccessToken();
+          dispatch(hydrateUserFailure());
+        }
       })
       .catch(() => {
         if (active) dispatch(hydrateUserFailure());
       });
+
     return () => { active = false; };
   }, [dispatch]);
 
