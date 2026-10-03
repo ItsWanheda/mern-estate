@@ -4,13 +4,14 @@ import { verifyToken } from '../utils/verifyUser.js';
 import { storeImage } from '../utils/objectStorage.js';
 import { createRateLimiter } from '../utils/rateLimit.js';
 
-const router = express.Router();
+export const createUploadRouter = ({ store }) => {
+  const router = express.Router();
 
-const uploadRateLimiter = createRateLimiter({
+  const uploadRateLimiter = createRateLimiter({
   name: 'upload',
   windowMs: 60_000,
   max: 10,
-  store: undefined,
+  store,
   message: 'Too many upload requests. Please try again later.',
 });
 
@@ -52,4 +53,5 @@ router.post('/', verifyToken, uploadRateLimiter, upload.single('file'), async (r
   }
 });
 
-export default router;
+  return router;
+};
